@@ -4,8 +4,16 @@
   "mcp": {
     "olist-lakehouse": {
       "type": "remote",
-      "url": "http://localhost:3000/api/mcp",
+      "url": "https://olist-mcp.vercel.app/api/mcp",
       "enabled": true,
+      "headers": {
+        "Authorization": "Bearer {env:MCP_API_KEY}"
+      }
+    },
+    "olist-local": {
+      "type": "remote",
+      "url": "http://localhost:3000/api/mcp",
+      "enabled": false,
       "headers": {
         "Authorization": "Bearer {env:MCP_API_KEY}"
       }
