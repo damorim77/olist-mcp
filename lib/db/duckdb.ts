@@ -48,15 +48,17 @@ function extensionDir(base: string): string {
 
 // httpfs precisa estar PRESENTE (INSTALL = rede + dir gravável) antes do LOAD.
 // Só INSTALL quando LOAD falha (extensão já cacheada no warm: custo ~0).
+// Lambda não tem HOME gravável: tudo (home + extensões) vai para /tmp.
 async function ensureHttpfs(conn: DuckDBConnection, base: string): Promise<void> {
+  await exec(conn, "SET home_directory='/tmp';");
+  await exec(
+    conn,
+    `SET extension_directory=${quoteLiteral(extensionDir(base))};`,
+  );
   try {
     await exec(conn, "LOAD httpfs;");
     return;
   } catch {
-    await exec(
-      conn,
-      `SET extension_directory=${quoteLiteral(extensionDir(base))};`,
-    );
     await exec(conn, "INSTALL httpfs;");
     await exec(conn, "LOAD httpfs;");
   }
