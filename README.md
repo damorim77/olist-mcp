@@ -47,7 +47,7 @@ jeitos:
 ## Arquitetura
 
 ```mermaid
-flowchart LR
+flowchart TD
     U([Você — português]) --> CHAT["/chat<br/>(Next.js + dark mode)"]
     CHAT --> API["/api/chat<br/>(gpt-oss-20b via NVIDIA NIM)"]
     API -->|HTTP interno| MCP["/api/mcp<br/>(7 tools MCP)"]
