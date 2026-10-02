@@ -1,89 +1,181 @@
-# olist-mcp — Serverless Data Lakehouse MCP (Olist)
+# olist-mcp — E-commerce brasileiro consultável em linguagem natural
+
+[![Next.js](https://img.shields.io/badge/Next.js-16-black)](https://nextjs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-strict-blue)](https://www.typescriptlang.org/)
+[![DuckDB](https://img.shields.io/badge/DuckDB-serverless-yellow)](https://duckdb.org/)
+[![MCP](https://img.shields.io/badge/MCP-Streamable_HTTP-green)](https://modelcontextprotocol.io/)
+[![Vercel](https://img.shields.io/badge/Vercel-production-black)](https://olist-mcp.vercel.app/chat)
+[![Tests](https://img.shields.io/badge/tests-37_passing-brightgreen)](#)
+
+> ### 🟢 Live Demo
+>
+> ## [💬 Abrir o chat: olist-mcp.vercel.app/chat](https://olist-mcp.vercel.app/chat)
+>
+> Pergunte em português, por exemplo **"Funil de pedidos de 2017?"** — o agente
+> consulta ~100 mil pedidos reais e responde com números em ~10 segundos.
 
 ## O que é
 
-O **dataset da Olist** é um dataset público de e-commerce brasileiro com
-~100 mil pedidos reais de 2016 a 2018: pedidos e entregas (`orders`), itens e
-preços (`order_items`), produtos e categorias (`products`), compradores
-(`customers`), avaliações de 1 a 5 com comentários (`reviews`), pagamentos e
-parcelas (`order_payments`) e vendedores (`sellers`).
+O dataset público da **Olist** (e-commerce brasileiro, 2016–2018: pedidos,
+itens, produtos, clientes, avaliações, pagamentos e vendedores) exposto de dois
+jeitos:
 
-Este servidor **MCP** (Model Context Protocol, Streamable HTTP) expõe esse
-dataset para **agentes de IA consultarem em linguagem natural**: em vez de
-baixar CSVs e escrever código, o agente pergunta — por exemplo "funil de
-pedidos de 2017" ou "vendas de bed_bath_table" — e o servidor traduz para
-SQL DuckDB executado serverless na Vercel sobre Parquet, com guardrails
-(somente leitura, máx 100 linhas, Bearer auth).
+1. **Chat em linguagem natural** (link acima) — um agente LLM traduz perguntas
+   em consultas e responde com tabelas e interpretação, inclusive traduzindo
+   nomes amigáveis ("Cama, Mesa e Banho" → `bed_bath_table`).
+2. **Servidor MCP** (`POST /api/mcp`, Streamable HTTP + Bearer) — qualquer
+   agente compatível (Claude, OpenCode, Inspector) pode plugar as mesmas
+   7 ferramentas.
 
-Detalhes de arquitetura e decisões em `docs/PLAN.md`; status executivo em
-`docs/PROGRESS.md`.
+## Por que é interessante
 
-Produção: `https://olist-mcp.vercel.app/api/mcp` (exige
-`Authorization: Bearer <MCP_API_KEY>`).
+- **Agente com ferramentas reais**: loop LLM → tool-calls → SQL, com correção
+  automática (typo de categoria retorna sugestões; `truncated` orienta a
+  refinar em vez de chutar totais).
+- **Serverless de verdade**: DuckDB roda dentro da Lambda Vercel sobre
+  Parquet empacotado — catálogo em `/tmp`, modo `READ_ONLY`, configuração
+  travada, sem banco externo e sem custo fixo.
+- **Guardrails levados a sério**: só `SELECT`/`WITH`, máx. 100 linhas por
+  consulta, timeout com `interrupt()`, erros sanitizados (`isError`, sem vazar
+  paths), comentários de reviews tratados como texto não-confiável.
+- **Latência caçada com benchmark**: o primeiro modelo (~35s/geração)
+  estourava o limite de 60s da função; após medir 6 candidatos, a troca
+  reduziu o turno de **124s para ~10s** em produção.
+- **Testes sobre dados reais** (37, todos verdes): funil monotônico,
+  `receita + frete == bruto`, dedup de reviews, serialização de `BigInt`.
 
-## 7 tools
+## Arquitetura
 
-| Tool | Uso |
-|------|-----|
-| `list_datasets` | 7 tabelas disponíveis |
-| `get_table_schema` | colunas + pk + relacionamentos + notas semânticas (chame antes de JOINs) |
-| `execute_sql_query` | SQL DuckDB read-only (`SELECT`/`WITH`, 1 instrução, ≤100 linhas, `truncated` quando corta; `isError` autocorrigível) |
-| `analyze_category_sales` | `product_revenue` (=`SUM(price)`) + `freight_total` + `gross_with_freight`; categoria exata ou sugestões |
-| `get_order_funnel` | funil `purchased→approved→shipped→delivered` por coorte 2016–2018 (monotônico; 2018 com right-censoring) |
-| `get_order_status_distribution` | status final na coorte |
-| `analyze_category_reviews` | satisfação de pedidos com a categoria (dedup; comentários = texto não-confiável) |
+```mermaid
+flowchart LR
+    U([Você — português]) --> CHAT["/chat<br/>(Next.js + dark mode)"]
+    CHAT --> API["/api/chat<br/>(gpt-oss-20b via NVIDIA NIM)"]
+    API -->|HTTP interno| MCP["/api/mcp<br/>(7 tools MCP)"]
+    MCP --> DD[(DuckDB READ_ONLY<br/>Parquet no bundle)]
+    DD --> API
+    API -->|texto + Markdown| CHAT
+    EXT([Claude / OpenCode / Inspector]) -->|Bearer| MCP
+```
 
-### Perguntas que ativam cada tool
+## Números do dataset
 
-| Pergunta em linguagem natural | Tool acionada |
-|------|-----|
-| "Quais dados estão disponíveis?" / "O que posso consultar?" | `list_datasets` |
-| "Qual o schema de orders?" / "Como reviews se liga a pedidos?" | `get_table_schema` |
-| "Top 5 categorias por receita em 2018?" / "Ticket médio por estado?" | `execute_sql_query` |
-| "Vendas de bed_bath_table?" / "Quanto vendeu health_beauty?" | `analyze_category_sales` |
-| "Funil de pedidos de 2017?" / "Quantos pedidos de 2018 foram entregues?" | `get_order_funnel` |
-| "Distribuição de status em 2018?" / "Quantos cancelados em 2017?" | `get_order_status_distribution` |
-| "Satisfação de bed_bath_table?" / "O que reclamam em furniture_decor?" | `analyze_category_reviews` |
+| Dado | Valor |
+|------|-------|
+| Pedidos em 2017 (funil completo) | 45.101 |
+| Avaliações de clientes | 99.224 |
+| Categorias de produto | 73 (com nomes amigáveis em PT-BR) |
+| Tabelas / tools MCP | 7 |
+| Período coberto | 2016–2018 |
 
-Dicas: categoria precisa ser exata (`bed_bath_table`, não "cama e banho") —
-com typo a tool sugere valores válidos; ano só 2016–2018; perguntas fora
-dessas caixas (pagamentos, vendedores) o agente resolve combinando
-`get_table_schema` + `execute_sql_query`; se vier `truncated: true`, peça
-para refinar em vez de aceitar os 100 como total.
+## As 7 tools
 
-## Rodar local
+| Tool | Faz o quê |
+|------|------------|
+| `list_datasets` | Lista as 7 tabelas |
+| `get_table_schema` | Colunas + chaves + relacionamentos + notas semânticas |
+| `execute_sql_query` | SQL DuckDB read-only (≤100 linhas) |
+| `analyze_category_sales` | Receita + frete + bruto por categoria |
+| `get_order_funnel` | Funil comprado→aprovado→enviado→entregue por ano |
+| `get_order_status_distribution` | Status final dos pedidos por ano |
+| `analyze_category_reviews` | Nota média + comentários recentes por categoria |
+
+## Desenvolvimento
+
+### Pré-requisitos
+
+- **Node 24 + npm** (sem pnpm) e **Python 3** com `pandas`/`pyarrow` (só para o ETL).
+- Shell documentado em PowerShell 5.1 (Windows).
+
+### Variáveis de ambiente
+
+| Var | Onde | Para quê |
+|-----|------|----------|
+| `MCP_API_KEY` | `.env.local` + Vercel (Preview e Production, Secret) | Bearer do `/api/mcp` e do hop interno do chat |
+| `NVIDIA_API_KEY` | `.env.local` + Vercel (Production, Secret) | LLM do chat via NVIDIA NIM |
+| `NIM_MODEL` | `.env.local` + Vercel (Production) | Modelo do chat (atual: `openai/gpt-oss-20b`) |
+| `OLIST_CSV_DIR` | só local, só p/ ETL | Pasta com os 9 CSVs do Kaggle |
+
+> Secrets da Vercel **não podem ser lidos de volta** (aparecem como
+> `[SENSITIVE]`): se perder uma chave, rotacione com
+> `vercel env add NOME <env> --force` + redeploy.
+
+### Rodar local
 
 ```powershell
 $env:MCP_API_KEY = "dev-key-123"   # qualquer valor; sem ela tudo dá 401
-$env:OLIST_CSV_DIR = "C:\...\olist-csv"  # só p/ ETL
 npm install
-npm run dev                        # http://localhost:3000/api/mcp
+npm run dev                        # chat em http://localhost:3000/chat
 ```
 
-Testes/build: `npm test`, `npm run typecheck`, `npm run build`.
-Smoke ponta a ponta (precisa do dev rodando):
-`$env:MCP_API_KEY="dev-key-123"; node scripts/smoke-mcp.mjs`.
-No OpenCode, `opencode.json` já aponta p/ o local com `{env:MCP_API_KEY}`
-(nunca `${VAR}` — vira literal e dá 401 falso).
+### Verificação
 
-## ETL (Fase 1)
+```powershell
+npm test                            # todos (37, sobre dados reais)
+npx vitest run tests/<arquivo>      # focado, ex.: tests/tools.test.ts
+npm run typecheck                   # tsc --noEmit (strict + noUncheckedIndexedAccess)
+npm run build                       # build Next/Turbopack de produção
+```
 
-`python scripts/etl_olist.py --csv-dir <9 CSVs do Kaggle olistbr/brazilian-ecommerce>`
-gera `data/<tabela>/part-0000.parquet` + `src/generated/manifest.ts` +
-`lib/db/categories.ts`. Timestamps naive (sem fuso); serialização ISO sem `Z`.
+Smoke do MCP no caminho HTTP real (precisa do dev rodando):
 
-Dataset origem: [Brazilian E-Commerce Public Dataset by Olist (Kaggle)](https://www.kaggle.com/datasets/olistbr/brazilian-ecommerce) — CC BY-NC-SA 4.0.
+```powershell
+$env:MCP_API_KEY="dev-key-123"; node scripts/smoke-mcp.mjs [url]
+```
 
-## Deploy (Vercel)
+Testes MCP usam `InMemoryTransport.createLinkedPair()` + `Client` oficial —
+não chame o envelope do protocolo na mão.
 
-Push na `main` + `vercel deploy --prod` (sem auto-deploy por enquanto: git
-nunca foi vinculado no dashboard). Envs: `MCP_API_KEY` (Secret) em Preview e
-Production. Parquets vão no bundle (`outputFileTracingIncludes`); catálogo
-DuckDB em `/tmp`, `READ_ONLY`, allowlist + config travada. Proteção SSO do
-projeto desligada via API (`ssoProtection: null`) — o gate é o Bearer.
+### OpenCode
 
-## Dados: licença (bloqueante)
+`opencode.json` já aponta para a produção (`olist-local` desabilitado).
+Sempre `{env:MCP_API_KEY}` — nunca `${MCP_API_KEY}` (vira literal e dá
+401 falso). Modelo do agente: `meta/llama-3.3-70b-instruct`.
 
-`data/*` deriva do Brazilian E-commerce by Olist, **CC BY-NC-SA 4.0**
-(ver `data/LICENSE-ATTRIBUTION.md`): atribuição + **uso não-comercial** +
-mesma licença. Não usar este deploy/dados em contexto comercial.
+### ETL (gera os Parquets)
+
+```powershell
+python scripts/etl_olist.py --csv-dir <pasta com os 9 CSVs de olistbr/brazilian-ecommerce>
+```
+
+Gera `data/<tabela>/part-0000.parquet` + `src/generated/manifest.ts` +
+`lib/db/categories.ts` (**gerado — não editar à mão**; o de-para amigável
+vive em `lib/db/category-labels.ts`, manual). CSVs devem ser abertos com
+`encoding="utf-8"`, timestamps são naive (serialização ISO sem `Z`).
+
+### Estrutura
+
+```text
+app/api/mcp/route.ts    # servidor MCP (Streamable HTTP, Bearer)
+app/api/chat/route.ts   # chat: LLM (NIM) + tools MCP via HTTP interno
+app/chat/               # UI do chat (CSS puro com tokens, dark mode)
+lib/mcp/server.ts       # as 7 tools (resolveCategory, guard, envelope)
+lib/db/                 # DuckDB (singleton /tmp + READ_ONLY), guard, serialize, metadata
+lib/db/category-labels.ts # de-para slug EN → PT → rótulo amigável (manual)
+data/<tabela>/          # Parquets (vão no bundle da Lambda)
+scripts/etl_olist.py    # Kaggle CSVs → Parquet + manifest + categories
+tests/                  # 37 testes vitest sobre dados reais
+```
+
+### Deploy (Vercel, manual)
+
+Push na `main` + (sem auto-deploy: git nunca vinculado no dashboard):
+
+```powershell
+vercel deploy --prod --scope damorim77s-projects   # o --scope é obrigatório
+```
+
+Detalhes que já morderam: Parquets e `libduckdb.so` sobem via
+`outputFileTracingIncludes`; catálogo DuckDB em `/tmp` (`READ_ONLY`,
+allowlist + config travada); Lambda sem `HOME` (tudo em `/tmp`); proteção
+SSO desligada via API — o gate é o Bearer. Inspector MCP: transporte
+`streamable-http`, era **Modern** + header `Authorization`.
+
+Arquitetura e decisões em [`docs/PLAN.md`](docs/PLAN.md); status executivo
+em [`docs/PROGRESS.md`](docs/PROGRESS.md) (a `SPEC` está desatualizada).
+
+## Licença dos dados
+
+`data/*` deriva do [Brazilian E-Commerce Public Dataset by Olist
+(Kaggle)](https://www.kaggle.com/datasets/olistbr/brazilian-ecommerce) —
+**CC BY-NC-SA 4.0** (ver `data/LICENSE-ATTRIBUTION.md`): atribuição + **uso
+não-comercial** + mesma licença.

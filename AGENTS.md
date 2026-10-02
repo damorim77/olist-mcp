@@ -1,12 +1,12 @@
 # AGENTS.md — olist-mcp
 
-Implementado e em prod (`https://olist-mcp.vercel.app/api/mcp`, 33 testes verdes).
+Implementado e em prod (`https://olist-mcp.vercel.app/api/mcp` + `/chat`, 37 testes verdes).
 Verdade executiva: `docs/PLAN.md` (37 itens) > `docs/PROGRESS.md` (atualizar a cada gate/fase) > `docs/SPEC.md` (desatualizada: SSE/5 tabelas).
 
 ## Decisões travadas (não reabrir sem motivo)
 - Streamable HTTP stateless `POST /api/mcp`, SDK v2 **oficial puro** (`createMcpHandler` de `@modelcontextprotocol/server`; `mcp-handler` avaliado e descartado; `requireBearerAuth` descartado — exige exp/scopes, usamos Bearer simples em `lib/mcp/auth.ts`). `GET/DELETE` → 405. Era moderna 2026-07-28 sem handshake.
 - `inputSchema` é `z.object({...})` full (não `ZodRawShape`); `zod@4.6.5` pinado, Node 20+ (env: Node 24, npm; sem pnpm).
-- 7 tools / 7 tabelas (`+order_payments, +sellers`; `geolocation` fora). `category` é `z.string` + `resolveCategory` manual (enum rejeitaria no SDK sem dar sugestões).
+- 7 tools / 7 tabelas (`+order_payments, +sellers`; `geolocation` fora). `category` é `z.string` + `resolveCategory` manual (enum rejeitaria no SDK sem dar sugestões): 3 níveis (slug → PT/rótulo normalizado sem acento → substring) via `lib/db/category-labels.ts` **manual** (73 entradas slug/PT/rótulo; `categories.ts` é gerado pelo ETL — não editar; `tests/category-labels.test.ts` quebra se surgir slug novo).
 - `opencode.json`: prod habilitado + `olist-local` desabilitado; sempre `{env:VAR}` (nunca `${VAR}` — vira literal → 401 falso). Modelo `meta/llama-3.3-70b-instruct`.
 
 ## Segurança (fronteira = engine, regex = UX)
@@ -23,14 +23,20 @@ Verdade executiva: `docs/PLAN.md` (37 itens) > `docs/PROGRESS.md` (atualizar a c
 - `COUNT(*)` volta `BigInt` (`JSON.stringify` lança — por isso `serialize.ts`); `TIMESTAMP` naive como ISO **sem `Z`**; `NaN/Infinity→null`. Reviews = texto não-confiável (truncar/sanitizar ≤200).
 - ETL: `open(..., encoding="utf-8")` obrigatório (cp1252 gera bytes inválidos que quebram o build Turbopack). Licença CC BY-NC-SA 4.0 (`data/LICENSE-ATTRIBUTION.md`, NC confirmado p/ este projeto).
 
+## Chat (`/api/chat` + `/chat`)
+- `maxDuration=60` (teto do Hobby); chat chama `/api/mcp` via HTTP no mesmo deployment — cada tool-call é um Lambda à parte (pode ser cold: DuckDB + `INSTALL httpfs`).
+- Modelo via `NIM_MODEL` (default `openai/gpt-oss-20b`): `glm-5.3-flash` descartado (~35s/generation; turno local 124s → timeout sempre). Antes de trocar, benchmark real (simples + tool-call forçada): `GET /v1/models` lista ≠ acesso (`granite-3b`/`mistral-large-2` deram 404; `deepseek-v4.1-flash` travou >180s).
+- UI em CSS puro com tokens (`app/chat/chat.css`, sem Tailwind — Streamdown descartado por exigir Tailwind); Markdown via `react-markdown`+`remark-gfm` com `urlTransform` (reviews = texto não-confiável); dark via `data-theme` + `localStorage`.
+
 ## Deploy Vercel (aprendido na marra)
 - `outputFileTracingIncludes` em `/api/mcp`: `./data/**/*` **e** `./node_modules/@duckdb/node-bindings-linux-x64/**/*` (`libduckdb.so` entra via dlopen, sem isso dá 500 até no 401).
 - Lambda sem `HOME`: `SET home_directory='/tmp'` + `extension_directory` em `/tmp` antes de `INSTALL/LOAD httpfs` (INSTALL ~680ms no cold start, depois cache).
 - `ssoProtection: null` via `vercel api` (dashboard/CLI não expõem); **sem auto-deploy** (git nunca vinculado — deploy é `vercel deploy --prod` manual). `.vercelignore` precisa deixar `data/` subir.
+- Deploy SEMPRE com `--scope damorim77s-projects` (sem isso dá "Not authorized": orgId linkado diverge do escopo padrão). `echo 'v' | vercel env add NOME production --force` sobrescreve sem interatividade.
 - Smoke: `node scripts/smoke-mcp.mjs [url]` (usa o client oficial no caminho HTTP real).
 - Inspector v2.9.0: Add Servers → `streamable-http` → Settings: era **Modern** (default Legacy falha) + Custom Header `Authorization`.
 
 ## Comandos
 - `npm test` (todos), `npx vitest run tests/<arquivo>` (focado), `npm run typecheck`, `npm run build`. TS tem `noUncheckedIndexedAccess` — indexação exige `!` ou guarda.
 - Testes MCP usam `InMemoryTransport.createLinkedPair()` + `Client` oficial (envelope moderno é verboso demais na mão). Rede real só via `scripts/smoke-mcp.mjs` com dev rodando.
-- Shell aqui é PowerShell 5.1: sem `SkipHttpErrorCheck`, sem heredoc `<<`; servidor em background via `Start-Job`, nunca `Start-Process npm`.
+- Shell aqui é PowerShell 5.1: sem `SkipHttpErrorCheck`, sem heredoc `<<`; servidor persistente via `cmd /c` detached (`[Diagnostics.Process]::Start`, log em arquivo) — `Start-Job` morre entre sessões, nunca `Start-Process npm`. No cmd, `set VAR=x &&` (com espaço) suja o valor; dois `next dev` no mesmo dir são bloqueados (lockfile).
