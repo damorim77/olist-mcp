@@ -1,9 +1,22 @@
 # olist-mcp — Serverless Data Lakehouse MCP (Olist)
 
-Servidor MCP stateless (Streamable HTTP, SDK v2) que expõe o dataset público
-de e-commerce da Olist para agentes LLM, rodando serverless na Vercel com
-DuckDB sobre Parquet. Detalhes de arquitetura e decisões em `docs/PLAN.md`;
-status executivo em `docs/PROGRESS.md`.
+## O que é
+
+O **dataset da Olist** é um dataset público de e-commerce brasileiro com
+~100 mil pedidos reais de 2016 a 2018: pedidos e entregas (`orders`), itens e
+preços (`order_items`), produtos e categorias (`products`), compradores
+(`customers`), avaliações de 1 a 5 com comentários (`reviews`), pagamentos e
+parcelas (`order_payments`) e vendedores (`sellers`).
+
+Este servidor **MCP** (Model Context Protocol, Streamable HTTP) expõe esse
+dataset para **agentes de IA consultarem em linguagem natural**: em vez de
+baixar CSVs e escrever código, o agente pergunta — por exemplo "funil de
+pedidos de 2017" ou "vendas de bed_bath_table" — e o servidor traduz para
+SQL DuckDB executado serverless na Vercel sobre Parquet, com guardrails
+(somente leitura, máx 100 linhas, Bearer auth).
+
+Detalhes de arquitetura e decisões em `docs/PLAN.md`; status executivo em
+`docs/PROGRESS.md`.
 
 Produção: `https://olist-mcp.vercel.app/api/mcp` (exige
 `Authorization: Bearer <MCP_API_KEY>`).
