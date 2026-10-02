@@ -46,3 +46,23 @@ export async function checkIntent(
   });
   return object.in_scope;
 }
+
+// Gate com retry + fail-open: o gate é otimização (recusa rápida e barata),
+// nunca barreira — se falhar 2x (NIM instável), a pergunta segue para o agente
+// (o SYSTEM dele também manda recusar fora do escopo). Recusar pergunta
+// legítima por flake do gate é pior que responder off-topic raramente.
+export async function gateWithFallback(
+  check: () => Promise<boolean>,
+  onError?: (attempt: number, error: unknown) => void,
+): Promise<boolean> {
+  let inScope = true;
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      inScope = await check();
+      break;
+    } catch (error) {
+      onError?.(attempt, error);
+    }
+  }
+  return inScope;
+}

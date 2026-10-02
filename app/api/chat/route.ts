@@ -11,6 +11,7 @@ import {
 } from "ai";
 import {
   checkIntent,
+  gateWithFallback,
   OUT_OF_SCOPE_REPLY,
 } from "@/lib/chat/intent";
 
@@ -95,7 +96,16 @@ export async function POST(request: Request) {
     // glm-5.3-flash foi descartado: ~35s/generation estourava os 60s).
     const nimModel = process.env.NIM_MODEL ?? "openai/gpt-oss-20b";
     // Gate primeiro: fora do escopo recusa sem nem conectar no MCP.
-    if (!(await checkIntent(nim.chat(nimModel), messages))) {
+    // Fail-open com retry: flake do gate nunca quebra pergunta legítima.
+    const inScope = await gateWithFallback(
+      () => checkIntent(nim.chat(nimModel), messages),
+      (attempt, error) =>
+        console.warn(
+          `[chat] gate falhou (tentativa ${attempt}/2):`,
+          String(error).slice(0, 200),
+        ),
+    );
+    if (!inScope) {
       return refusalResponse();
     }    mcp = await getMcp();
     const result = streamText({

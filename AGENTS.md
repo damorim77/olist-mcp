@@ -26,7 +26,7 @@ Verdade executiva: `docs/PLAN.md` (37 itens) > `docs/PROGRESS.md` (atualizar a c
 ## Chat (`/api/chat` + `/chat`)
 - `maxDuration=60` (teto do Hobby); chat chama `/api/mcp` via HTTP no mesmo deployment — cada tool-call é um Lambda à parte (pode ser cold: DuckDB + `INSTALL httpfs`).
 - Modelo via `NIM_MODEL` (default `openai/gpt-oss-20b`): `glm-5.3-flash` descartado (~35s/generation; turno local 124s → timeout sempre). Antes de trocar, benchmark real (simples + tool-call forçada): `GET /v1/models` lista ≠ acesso (`granite-3b`/`mistral-large-2` deram 404; `deepseek-v4.1-flash` travou >180s).
-- Gate de intenção (`lib/chat/intent.ts`) antes do agente: `generateObject`+zod (`{in_scope}`), NUNCA SIM/NAO em texto (modelo raciocina em `reasoning_content` e deixa `content` vazio → gate nunca disparava). Fora do escopo → recusa canônica via `createUIMessageStream` (sem MCP, ~2s).
+- Gate de intenção (`lib/chat/intent.ts`) antes do agente: `generateObject`+zod (`{in_scope}`), NUNCA SIM/NAO em texto (modelo raciocina em `reasoning_content` e deixa `content` vazio → gate nunca disparava). Fora do escopo → recusa canônica via `createUIMessageStream` (sem MCP, ~2s). Gate tem retry + **fail-open** (`gateWithFallback`): flake do NIM nunca dá 500 em pergunta legítima.
 - UI em CSS puro com tokens (`app/chat/chat.css`, sem Tailwind — Streamdown descartado por exigir Tailwind); Markdown via `react-markdown`+`remark-gfm` com `urlTransform` (reviews = texto não-confiável); dark via `data-theme` + `localStorage`.
 
 ## Deploy Vercel (aprendido na marra)

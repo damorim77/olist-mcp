@@ -1,5 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
+  gateWithFallback,
   INTENT_SYSTEM,
   IntentVerdict,
   OUT_OF_SCOPE_REPLY,
@@ -26,5 +27,24 @@ describe("verificador de intenção (gate do chat)", () => {
     for (const kw of ["Olist", "pagamentos", "dúvida", "in_scope"]) {
       expect(INTENT_SYSTEM).toContain(kw);
     }
+  });
+
+  it("gateWithFallback: retry honra o veredito", async () => {
+    const onError = vi.fn();
+    const check = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("flake"))
+      .mockResolvedValueOnce(false);
+    await expect(gateWithFallback(check, onError)).resolves.toBe(false);
+    expect(check).toHaveBeenCalledTimes(2);
+    expect(onError).toHaveBeenCalledTimes(1);
+  });
+
+  it("gateWithFallback: fail-open após 2 falhas", async () => {
+    const onError = vi.fn();
+    const check = vi.fn().mockRejectedValue(new Error("NIM instável"));
+    await expect(gateWithFallback(check, onError)).resolves.toBe(true);
+    expect(check).toHaveBeenCalledTimes(2);
+    expect(onError).toHaveBeenCalledTimes(2);
   });
 });
