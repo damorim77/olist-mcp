@@ -62,8 +62,9 @@ export async function POST(request: Request) {
       apiKey: nimKey,
     });
     // NIM só implementa /chat/completions (não /responses): usar .chat().
-    // Modelo via NIM_MODEL (Llama 3.3 e 4 Maverick foram EOL em 2026).
-    const nimModel = process.env.NIM_MODEL ?? "z-ai/glm-5.3-flash";
+    // Modelo via NIM_MODEL (gpt-oss-20b: tool-call correto em ~1s;
+    // glm-5.3-flash foi descartado: ~35s/generation estourava os 60s).
+    const nimModel = process.env.NIM_MODEL ?? "openai/gpt-oss-20b";
     const result = streamText({
       model: nim.chat(nimModel),
       system: SYSTEM,
