@@ -20,6 +20,24 @@ Produção: `https://olist-mcp.vercel.app/api/mcp` (exige
 | `get_order_status_distribution` | status final na coorte |
 | `analyze_category_reviews` | satisfação de pedidos com a categoria (dedup; comentários = texto não-confiável) |
 
+### Perguntas que ativam cada tool
+
+| Pergunta em linguagem natural | Tool acionada |
+|------|-----|
+| "Quais dados estão disponíveis?" / "O que posso consultar?" | `list_datasets` |
+| "Qual o schema de orders?" / "Como reviews se liga a pedidos?" | `get_table_schema` |
+| "Top 5 categorias por receita em 2018?" / "Ticket médio por estado?" | `execute_sql_query` |
+| "Vendas de bed_bath_table?" / "Quanto vendeu health_beauty?" | `analyze_category_sales` |
+| "Funil de pedidos de 2017?" / "Quantos pedidos de 2018 foram entregues?" | `get_order_funnel` |
+| "Distribuição de status em 2018?" / "Quantos cancelados em 2017?" | `get_order_status_distribution` |
+| "Satisfação de bed_bath_table?" / "O que reclamam em furniture_decor?" | `analyze_category_reviews` |
+
+Dicas: categoria precisa ser exata (`bed_bath_table`, não "cama e banho") —
+com typo a tool sugere valores válidos; ano só 2016–2018; perguntas fora
+dessas caixas (pagamentos, vendedores) o agente resolve combinando
+`get_table_schema` + `execute_sql_query`; se vier `truncated: true`, peça
+para refinar em vez de aceitar os 100 como total.
+
 ## Rodar local
 
 ```powershell
@@ -40,6 +58,8 @@ No OpenCode, `opencode.json` já aponta p/ o local com `{env:MCP_API_KEY}`
 `python scripts/etl_olist.py --csv-dir <9 CSVs do Kaggle olistbr/brazilian-ecommerce>`
 gera `data/<tabela>/part-0000.parquet` + `src/generated/manifest.ts` +
 `lib/db/categories.ts`. Timestamps naive (sem fuso); serialização ISO sem `Z`.
+
+Dataset origem: [Brazilian E-Commerce Public Dataset by Olist (Kaggle)](https://www.kaggle.com/datasets/olistbr/brazilian-ecommerce) — CC BY-NC-SA 4.0.
 
 ## Deploy (Vercel)
 
