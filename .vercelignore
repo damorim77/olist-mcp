@@ -1,0 +1,5 @@
+# Upload p/ deploy CLI. data/ PRECISA subir (bundle-local); testes ficam de fora.
+node_modules
+.next
+.vercel
+tests
