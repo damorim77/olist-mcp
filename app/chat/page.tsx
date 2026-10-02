@@ -127,30 +127,16 @@ export default function ChatPage() {
         </h1>
         <p className="intro-lead">
           Explore o e-commerce brasileiro em linguagem natural. O assistente consulta
-          pedidos reais de 2016 a 2018 e responde com números — sem SQL, sem planilha.
+          pedidos reais de 2016 a 2018 e responde com números.
         </p>
-
-        <div className="kpi-grid" role="list" aria-label="Números do dataset">
-          <div className="kpi-card" role="listitem">
-            <strong>45 mil</strong>
-            <small>pedidos em 2017 (funil completo)</small>
-          </div>
-          <div className="kpi-card" role="listitem">
-            <strong>99 mil</strong>
-            <small>avaliações de clientes</small>
-          </div>
-          <div className="kpi-card" role="listitem">
-            <strong>73</strong>
-            <small>categorias de produto</small>
-          </div>
-          <div className="kpi-card" role="listitem">
-            <strong>7</strong>
-            <small>tabelas consultáveis via MCP</small>
-          </div>
-        </div>
 
         <div>
           <p className="intro-section-title">Como funciona</p>
+          <p className="intro-text">
+            Suas perguntas vão para um agente que escolhe entre 7 ferramentas
+            MCP e consulta os dados (arquivos Parquet via DuckDB) — a resposta
+            volta em texto, com interpretação dos números.
+          </p>
           <ol className="steps" style={{ marginTop: 12 }}>
             <li>
               <span className="step-num" aria-hidden="true">1</span>
@@ -190,7 +176,18 @@ export default function ChatPage() {
           <span>
             Endpoint público: <a href="/api/mcp">POST /api/mcp</a>
           </span>
-          <span>Dataset Olist · CC BY-NC-SA 4.0 · timestamps sem fuso</span>
+          <a
+            className="github-link"
+            href="https://github.com/damorim77/olist-mcp"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+              <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z" />
+            </svg>
+            Código-fonte no GitHub
+          </a>
+          <span>Dataset Olist · CC BY-NC-SA 4.0</span>
         </div>
       </aside>
 

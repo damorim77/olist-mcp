@@ -93,30 +93,11 @@
   margin: 0;
 }
 
-.kpi-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--space-2);
-}
-
-.kpi-card {
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  border-radius: var(--radius-sm);
-  padding: 12px 14px;
-}
-
-.kpi-card strong {
-  display: block;
-  font-family: 'Fira Code', monospace;
-  font-size: 1.35rem;
-  font-weight: 600;
-}
-
-.kpi-card small {
-  font-size: 0.75rem;
-  color: #bfdbfe;
-  line-height: 1.4;
+.intro-text {
+  font-size: 0.875rem;
+  line-height: 1.6;
+  color: #dbeafe;
+  margin: 8px 0 0;
 }
 
 .steps {
@@ -192,6 +173,34 @@
   color: #fff;
   font-family: 'Fira Code', monospace;
   font-size: 0.78rem;
+}
+
+.github-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+  font-family: 'Fira Sans', system-ui, sans-serif;
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: #fff;
+  text-decoration: none;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 999px;
+  padding: 6px 12px;
+  transition:
+    background 160ms ease,
+    border-color 160ms ease;
+}
+
+.github-link:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.45);
+}
+
+.github-link:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
 }
 
 /* ── Coluna direita: chat ──────────────────────────── */
@@ -610,10 +619,6 @@
     font-size: 1.5rem;
   }
 
-  .kpi-grid {
-    grid-template-columns: repeat(4, 1fr);
-  }
-
   .intro-footer,
   .tool-list {
     display: none;
@@ -633,10 +638,6 @@
 }
 
 @media (max-width: 560px) {
-  .kpi-grid {
-    grid-template-columns: 1fr 1fr;
-  }
-
   .steps {
     display: none;
   }
