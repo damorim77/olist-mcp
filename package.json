@@ -12,8 +12,12 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@ai-sdk/mcp": "^2.0.66",
+    "@ai-sdk/openai": "^4.0.83",
+    "@ai-sdk/react": "^4.0.130",
     "@duckdb/node-api": "1.5.6-r.1",
     "@modelcontextprotocol/server": "2.2.0",
+    "ai": "^7.0.127",
     "next": "16.3.8",
     "react": "19.3.0",
     "react-dom": "19.3.0",
