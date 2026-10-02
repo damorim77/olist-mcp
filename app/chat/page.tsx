@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useChat } from "@ai-sdk/react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import "./chat.css";
 
 const EXAMPLES = [
@@ -14,7 +16,9 @@ const EXAMPLES = [
 
 type Part = { type: string } & Record<string, unknown>;
 
-/** Resposta do agente em texto puro: ignora tool-calls/JSON, exibe só texto. */
+/** Resposta do agente renderizada como Markdown (GFM: tabelas, listas, código).
+ *  HTML cru nunca é interpretado; URLs perigosas (javascript:/data:) são
+ *  neutralizadas (reviews contêm texto não-confiável de terceiros). */
 function AssistantText({ parts }: { parts: unknown[] }) {
   const texts = (parts as Part[]).filter(
     (p): p is Part & { text: string } =>
@@ -26,9 +30,23 @@ function AssistantText({ parts }: { parts: unknown[] }) {
   if (texts.length === 0) return null;
   return (
     <>
-      {texts.map((p, i) => (
-        <p key={i}>{p.text}</p>
-      ))}
+      <div className="md">
+        <ReactMarkdown
+          remarkPlugins={[remarkGfm]}
+          urlTransform={(url) =>
+            /^(https?:|mailto:|#|\/)/i.test(url.trim()) ? url : ""
+          }
+          components={{
+            a: ({ href, children }) => (
+              <a href={href} target="_blank" rel="noopener noreferrer">
+                {children}
+              </a>
+            ),
+          }}
+        >
+          {texts.map((p) => p.text).join("\n\n")}
+        </ReactMarkdown>
+      </div>
       {toolCalls > 0 && (
         <span className="tool-hint" title="Consultas executadas no banco via MCP">
           <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true">
