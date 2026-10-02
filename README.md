@@ -14,6 +14,8 @@
 > Pergunte em português, por exemplo **"Funil de pedidos de 2017?"** — o agente
 > consulta ~100 mil pedidos reais e responde com números em ~10 segundos.
 
+![Demo: 3 perguntas em português — funil de 2017, vendas de Cama/Mesa/Banho e satisfação de Beleza/Saúde — com o agente consultando o DuckDB via MCP e respondendo com tabelas + interpretação](docs/assets/chat-demo.gif)
+
 ## O que é
 
 O dataset público da **Olist** (e-commerce brasileiro, 2016–2018: pedidos,
