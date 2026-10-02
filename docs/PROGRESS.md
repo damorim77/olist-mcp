@@ -2,7 +2,7 @@
 
 Fonte de verdade do escopo: `docs/PLAN.md` (37 itens). Este arquivo é o **status executivo** — atualizar a cada fase/gate.
 
-Última atualização: 2026-10-02 — Fases 0B, 0A, 1, 2, 3–4 prontas (33/33 + typecheck + build verdes).
+Última atualização: 2026-10-02 — deploy em produção validado (smoke verde na linux-x64).
 
 ## Legenda
 - `[ ]` pendente · `[~]` em andamento · `[x]` concluído · `[!]` bloqueado/FAIL (não avançar sem pivot)
@@ -11,15 +11,16 @@ Fonte de verdade do escopo: `docs/PLAN.md` (37 itens). Este arquivo é o **statu
 | Gate | Critério | Status | Evidência |
 |------|----------|--------|-----------|
 | A MCP | Inspector + OpenCode fazem `list_tools`/`call_tool` em `POST /api/mcp` | [~] | HTTP real GO (`scripts/smoke-mcp.mjs`) + **Inspector v2.9.0 GO**: servidor `olist-local` (streamable-http, era Modern, Bearer) conectado em 94ms, 7 tools listadas, `get_order_funnel(2017)` → 45101→45029→43943→43411. Achado: Inspector usa era Legacy por padrão — setar Modern p/ spec 2026-07-28. Falta: OpenCode |
-| B DuckDB | binding + `VIEW` + `httpfs` + `READ_ONLY` na Vercel (`serverExternalPackages`, `/tmp`/`catalog.duckdb`, `512MB/threads=1`) | [~] | Local GO (`tests/spike-b.test.ts` 8/8): binding win32-x64 ok; **`:memory:` READ_ONLY FALHA** (`Cannot launch in-memory database in read-only mode`) → `/tmp`+catalog é caminho principal; RW→fecha→RO lê view ok e `CREATE VIEW` em RO rejeitado; `INSTALL+LOAD httpfs` ok (~680ms 1ª vez, depois cache). Falta: repetir na Vercel (linux-x64, `extension_directory`, `LOAD/SET` em RO) |
+| B DuckDB | binding + `VIEW` + `httpfs` + `READ_ONLY` na Vercel (`serverExternalPackages`, `/tmp`/`catalog.duckdb`, `512MB/threads=1`) | [x] | Local + Vercel GO. Achados prod: `libduckdb.so` exige `outputFileTracingIncludes` do binding linux-x64; Lambda sem HOME → `home_directory`+`extension_directory` em `/tmp`; `LOAD/SET` funcionam em RO; `INSTALL` com rede ok no cold start |
 | B2 WASM | benchmark registrado; fallback conhecido | [ ] | Contingência reordenada: B=bundle local antes de C=WASM |
-| C Data | `Range` ok, latência no SLO; glob HTTPS falha como esperado; manifest explícito | [ ] | — |
-| D Security | matriz 2 categorias passa na engine (`allowed_directories` + `enable_external_access=false` + `lock`) | [~] | Local GO (`tests/duckdb.test.ts`): decoy fora de `data/` bloqueado com guard burlado; dentro lê; CREATE/DROP em RO rejeitados; falta `https://` em `allowed_directories` (Spike C) + Vercel |
-| E Auth | sem/inválido → 401, sem executar tool (`{env}` não `${}`) | [~] | Bearer simples verde (401/401 idênticos, GET/DELETE 405); `requireBearerAuth` oficial descartado (exige exp/scopes) |
+| C Data | `Range` ok, latência no SLO; glob HTTPS falha como esperado; manifest explícito | [x] | Estratégia bundle-local no v1 (Parquets no bundle, sem CDN): funil <2s em prod. Spike jsDelivr/`Range` remoto fica p/ evolução |
+| D Security | matriz 2 categorias passa na engine (`allowed_directories` + `enable_external_access=false` + `lock`) | [x] | Local GO + prod GO (`DROP`→`isError` no smoke; allowlist cobre `data/` do bundle) |
+| E Auth | sem/inválido → 401, sem executar tool (`{env}` não `${}`) | [x] | Local + prod GO (401/401 idênticos, GET/DELETE 405). `MCP_API_KEY` como Secret em Preview e Production |
 
 ## Fases
 - [x] **0B Scaffolding** — Next.js 16.3.8 + TS strict (`strict` + `noUncheckedIndexedAccess` preservados pós-build), deps oficiais pinadas (`@modelcontextprotocol/server@2.2.0`, `zod@4.6.5`, `@duckdb/node-api@1.5.6-r.1`), `POST /api/mcp` + Bearer simples (oficial `requireBearerAuth` avaliado e descartado: exige exp/scopes), `serverExternalPackages` top-level, `maxDuration=60` (SLO)
-- [~] **0A Spike A** — Gate E verde (401/401 idênticos, 405 em GET/DELETE); Gate A parcial (in-memory verde; falta Inspector/OpenCode com envelope moderno)
+- [x] **0A Spike A + Gate A** — HTTP real GO (smoke) + Inspector v2.9.0 GO (`olist-local`, era Modern, Bearer; funil 2017 ok). Falta: OpenCode
+- [x] **5–6 Deploy + docs** — GitHub (`damorim77/olist-mcp`, público NC ok) + Vercel prod `https://olist-mcp.vercel.app/api/mcp` (smoke verde: 401, 7 tools, funil, DROP→isError); `ssoProtection` desligada via API; sem auto-deploy (vincular git no dashboard); `README.md` criado
 - [x] **1 ETL** — Kaggle → 7 tabelas em `data/<table>/part-0000.parquet` (todos ≤10.2MB; counts validados via DuckDB; funil 2017 monotônico 45101→45029→43943→43411) + `src/generated/manifest.ts` + `lib/db/categories.ts` (73 valores: 71 EN + 2 PT sem tradução) + `data/LICENSE-ATTRIBUTION.md` (CC BY-NC-SA 4.0; NC ainda p/ checar antes do push)
 - [x] **2 DuckDB** — `lib/db/duckdb.ts` (singleton lazy `/tmp`+catalog por base, conexão/request + semáforo 2, `LOAD`→`512MB/threads=1`→allowlist→`external_access=false`→`lock`, `interrupt()` 25s + 2ª query rápida) + `lib/db/parquet.ts` (lista explícita do manifest, sem glob). Validado contra Parquet real.
 - [x] **3 MCP (7 tools MVP)** — `lib/mcp/server.ts` (`list, schema, execute, category_sales (tripla), order_funnel (sargable aninhado), status_distribution, category_reviews (dedup + comentários sanitizados ≤200 + warning)`; `category` com sugestões; ano 2016–18 com `isError` útil. `tests/tools.test.ts` 6/6 em dados reais (funil 2017=45101 monotônico, `revenue+freight==gross`, typo sugere, truncamento 100+flag). Ext. Fase 2 pendente: `reviews_for_order`
@@ -29,6 +30,9 @@ Fonte de verdade do escopo: `docs/PLAN.md` (37 itens). Este arquivo é o **statu
 
 ## Riscos abertos
 - `:memory:` READ_ONLY (assert Spike B) · prefixo `https://` em `allowed_directories` (Spike D) · `INSTALL httpfs` em Lambda (medir/embutir) · `mcp-handler` vs oficial (Spike A) · NC da licença · `${VAR}` vs `{env}` · `z.object` vs raw shape + `pnpm/npm why zod`
+
+## GitHub
+- [x] Repo `damorim77/olist-mcp` (público, NC confirmado) com push da main (`9fce0ff` + `6cb9c52`); Parquets + `data/LICENSE-ATTRIBUTION.md` publicados.
 
 ## Log (acrescentar por data)
 - 2026-10-02: documento criado; nenhuma fase iniciada. Próximo: 0B scaffolding + Spike A.
